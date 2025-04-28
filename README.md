@@ -31,6 +31,9 @@ npm install
 
 # Run the development
 npm run dev
+
+# Run the tests
+npm run test
 ```
 
 ## Usage
