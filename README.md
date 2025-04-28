@@ -28,6 +28,9 @@ cd job-queue
 
 # Install dependencies
 npm install
+
+# Run the development
+npm run dev
 ```
 
 ## Usage
