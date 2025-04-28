@@ -70,7 +70,7 @@ export class Queue {
       // Add to priority queue (negative priority for correct sorting - higher priority = lower score)
       await redis.zadd(
         `${this.queueName}:pending`,
-        -(job.priority || 0),
+        job.priority === 0 ? 0 : -(job.priority || 0), // Ensure we use exactly 0 not -0
         job.id
       );
     }
@@ -118,7 +118,7 @@ export class Queue {
       nextRetryAt: jobData.nextRetryAt
         ? parseInt(jobData.nextRetryAt)
         : undefined,
-      priority: jobData.priority ? parseInt(jobData.priority) : undefined,
+      priority: jobData.priority ? parseInt(jobData.priority) : 0,
       cron: jobData.cron,
       nextRunAt: jobData.nextRunAt ? parseInt(jobData.nextRunAt) : undefined,
       lastRunAt: jobData.lastRunAt ? parseInt(jobData.lastRunAt) : undefined,

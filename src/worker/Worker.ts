@@ -50,8 +50,8 @@ export class Worker {
             this.activeJobs.delete(jobId);
           }
         }
-
-        // Process delayed jobs
+        
+        // Process any delayed jobs that are ready
         await this.processDelayedJobs();
 
         // Start new jobs if we have capacity
@@ -134,8 +134,9 @@ export class Worker {
             );
 
             // Add to delayed queue for retry
+            const queueName = this.queue.getQueueName();
             await redis.zadd(
-              `${this.queue.getQueueName()}:delayed`,
+              `${queueName}:delayed`,
               nextRetryAt,
               job.id
             );
@@ -173,21 +174,29 @@ export class Worker {
   private async processDelayedJobs(): Promise<void> {
     try {
       const now = Date.now();
+      const queueName = this.queue.getQueueName();
       const delayedJobs = await redis.zrangebyscore(
-        `${this.queue.getQueueName()}:delayed`,
+        `${queueName}:delayed`,
         0,
         now
       );
 
+      // Ensure delayedJobs is an array
+      if (!delayedJobs || !Array.isArray(delayedJobs) || delayedJobs.length === 0) {
+        return;
+      }
+
       for (const jobId of delayedJobs) {
         // Remove from delayed queue
-        await redis.zrem(`${this.queue.getQueueName()}:delayed`, jobId);
+        await redis.zrem(`${queueName}:delayed`, jobId);
         // Add to pending queue with priority
         const job = await this.queue.getJob(jobId);
         if (job) {
+          // Explicitly handle priority 0 to avoid -0 vs 0 comparison issues in tests
+          const priority = job.priority === 0 ? 0 : -(job.priority || 0);
           await redis.zadd(
-            `${this.queue.getQueueName()}:pending`,
-            -(job.priority || 0),
+            `${queueName}:pending`,
+            priority,
             jobId
           );
         }
