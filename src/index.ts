@@ -1,150 +1,83 @@
 import { Queue } from "./queue/Queue";
 import { Worker } from "./worker/Worker";
-import { Job } from "./types/job";
+import { Job, JobOptions, WorkerOptions } from "./types/job";
 import { redis } from "./config/redis";
 
-// Example job processor that sometimes fails
-async function processEmailJob(job: Job): Promise<void> {
-  console.log(`Processing email job ${job.id}:`);
-  console.log("  To:", job.data.to);
-  console.log("  Subject:", job.data.subject);
-  console.log("  Body:", job.data.body);
-  console.log("  Priority:", job.priority || 0);
-  if (job.cron) {
-    console.log("  Cron:", job.cron);
-    console.log("  Next Run:", new Date(job.nextRunAt || 0).toLocaleString());
+export class JobQueue {
+  private queues: Map<string, Queue> = new Map();
+  private workers: Map<string, Worker> = new Map();
+
+  constructor(private redisUrl?: string) {
+    if (redisUrl) {
+      // Allow custom Redis URL configuration
+      redis.options.host = redisUrl;
+    }
   }
 
-  // Simulate random failures (30% chance of failure)
-  if (Math.random() < 0.3) {
-    throw new Error("Random failure occurred while sending email");
+  /**
+   * Create or get a queue by name
+   */
+  public getQueue(name: string): Queue {
+    if (!this.queues.has(name)) {
+      this.queues.set(name, new Queue(name));
+    }
+    return this.queues.get(name)!;
   }
 
-  // Simulate some work with random duration
-  const processingTime = Math.floor(Math.random() * 2000) + 1000; // 1-3 seconds
-  await new Promise((resolve) => setTimeout(resolve, processingTime));
-  console.log(`✓ Completed email job ${job.id} (took ${processingTime}ms)`);
-}
+  /**
+   * Add a job to a queue
+   */
+  public async addJob(
+    queueName: string,
+    type: string,
+    data: any,
+    options?: JobOptions
+  ): Promise<Job> {
+    const queue = this.getQueue(queueName);
+    return queue.addJob(type, data, options);
+  }
 
-async function cleanup() {
-  // Clear all keys in Redis
-  const keys = await redis.keys("*");
-  if (keys.length > 0) {
-    await redis.del(...keys);
+  /**
+   * Create a worker for a queue
+   */
+  public createWorker(
+    queueName: string,
+    processor: (job: Job) => Promise<void>,
+    options?: WorkerOptions
+  ): Worker {
+    const queue = this.getQueue(queueName);
+    const worker = new Worker(queue, processor, options);
+    this.workers.set(queueName, worker);
+    return worker;
+  }
+
+  /**
+   * Start all workers
+   */
+  public startWorkers(): void {
+    for (const worker of this.workers.values()) {
+      worker.start();
+    }
+  }
+
+  /**
+   * Stop all workers
+   */
+  public async stopWorkers(): Promise<void> {
+    for (const worker of this.workers.values()) {
+      await worker.stop();
+    }
+  }
+
+  /**
+   * Close the Redis connection
+   */
+  public async close(): Promise<void> {
+    await redis.quit();
   }
 }
 
-async function main() {
-  // Clean up Redis before starting
-  await cleanup();
-  console.log("Redis cleaned up");
-
-  // Create a queue instance
-  const emailQueue = new Queue("email");
-
-  // Create a worker instance with concurrency
-  const worker = new Worker(emailQueue, processEmailJob, {
-    pollInterval: 1000,
-    defaultRetryDelay: 3000,
-    defaultBackoffFactor: 2,
-    concurrency: 3, // Process 3 jobs concurrently
-  });
-
-  console.log("Adding jobs to queue...");
-
-  // Add a high priority job
-  const highPriorityJob = await emailQueue.addJob(
-    "send-email",
-    {
-      to: "important@example.com",
-      subject: "Urgent: High Priority Email",
-      body: "This is a high priority email",
-    },
-    {
-      priority: 10,
-      maxAttempts: 3,
-      retryDelay: 3000,
-      backoffFactor: 2,
-    }
-  );
-  console.log(`Added high priority job: ${highPriorityJob.id}`);
-
-  // Add a medium priority job
-  const mediumPriorityJob = await emailQueue.addJob(
-    "send-email",
-    {
-      to: "normal@example.com",
-      subject: "Medium Priority Email",
-      body: "This is a medium priority email",
-    },
-    {
-      priority: 5,
-      maxAttempts: 3,
-      retryDelay: 3000,
-      backoffFactor: 2,
-    }
-  );
-  console.log(`Added medium priority job: ${mediumPriorityJob.id}`);
-
-  // Add a low priority job
-  const lowPriorityJob = await emailQueue.addJob(
-    "send-email",
-    {
-      to: "low@example.com",
-      subject: "Low Priority Email",
-      body: "This is a low priority email",
-    },
-    {
-      priority: 1,
-      maxAttempts: 3,
-      retryDelay: 3000,
-      backoffFactor: 2,
-    }
-  );
-  console.log(`Added low priority job: ${lowPriorityJob.id}`);
-
-  // Add a recurring job (every minute)
-  const recurringJob = await emailQueue.addJob(
-    "send-email",
-    {
-      to: "recurring@example.com",
-      subject: "Recurring Email",
-      body: "This is a recurring email",
-    },
-    {
-      cron: "* * * * *", // Every minute
-      maxAttempts: 3,
-      retryDelay: 3000,
-      backoffFactor: 2,
-    }
-  );
-  console.log(`Added recurring job: ${recurringJob.id}`);
-
-  // Start the worker
-  console.log("\nStarting worker...");
-  worker.start();
-
-  // Stop the worker after 2 minutes to see recurring jobs in action
-  setTimeout(async () => {
-    console.log("\nStopping worker...");
-    await worker.stop();
-    // Close Redis connection
-    setTimeout(() => {
-      redis.quit();
-      process.exit(0);
-    }, 1000);
-  }, 120000); // 2 minutes
-}
-
-// Handle errors
-process.on("unhandledRejection", (error) => {
-  console.error("Unhandled rejection:", error);
-  redis.quit();
-  process.exit(1);
-});
-
-main().catch((error) => {
-  console.error("Error in main:", error);
-  redis.quit();
-  process.exit(1);
-});
+// Export types
+export { Job, JobOptions, WorkerOptions } from "./types/job";
+export { Queue } from "./queue/Queue";
+export { Worker } from "./worker/Worker";

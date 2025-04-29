@@ -1,18 +1,48 @@
 {
-  "name": "job-queue",
+  "name": "@umeshsujakhu/job-queue",
   "version": "1.0.0",
+  "description": "A robust, Redis-based job queue implementation with support for concurrency, retries, delayed jobs, and job prioritization",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "prepublishOnly": "npm run build",
+    "example": "ts-node examples/basic-usage.ts",
+    "prepare": "npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "Custom job queue implementation using Redis",
+  "keywords": [
+    "job-queue",
+    "redis",
+    "queue",
+    "worker",
+    "background-jobs",
+    "typescript",
+    "job-scheduler",
+    "task-queue",
+    "delayed-jobs",
+    "cron-jobs"
+  ],
+  "author": "Umesh Sujakhu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/umeshsujakhu/job-queue.git"
+  },
+  "bugs": {
+    "url": "https://github.com/umeshsujakhu/job-queue/issues"
+  },
+  "homepage": "https://github.com/umeshsujakhu/job-queue#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "dependencies": {
     "@types/ioredis": "^5.0.0",
     "@types/node": "^20.11.24",
@@ -22,12 +52,15 @@
     "ioredis": "^5.3.2",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^29.5.12",
     "jest": "^29.7.0",
-    "ts-jest": "^29.3.2",
-    "typescript": "^5.8.3"
+    "ts-jest": "^29.1.2"
+  },
+  "peerDependencies": {
+    "ioredis": "^5.0.0"
   }
 }

@@ -23,3 +23,10 @@ export interface JobOptions {
   backoffFactor?: number; // Exponential backoff factor
   cron?: string; // Cron expression for recurring jobs
 }
+
+export interface WorkerOptions {
+  pollInterval?: number; // How often to check for new jobs (in milliseconds)
+  defaultRetryDelay?: number; // Default delay between retries (in milliseconds)
+  defaultBackoffFactor?: number; // Default exponential backoff factor
+  concurrency?: number; // Number of jobs to process concurrently
+}
